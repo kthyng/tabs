@@ -5,10 +5,11 @@ Read in data that is served through TABS website.
 import pandas as pd
 
 
-def read(buoy, dstart, dend, tz='UTC', data='iv', resample=None):
+def read(buoy, dstart, dend, tz='UTC', freq='iv', var='flow', resample=None):
     '''Wrapper so you don't have to know what kind of buoy it is.
 
-    data keyword is for USGS flow data: 'iv' is instantaneous values, and 'dv' is daily
+    freq keyword is for USGS data: 'iv' is instantaneous values, and 'dv' is daily
+    var keyword is for USGS data: 'flow' is m^3 and 'height' is m, 'storage' is m^3
     resample will interpolate to upsample or take the average to downsample
       data. If used, input a tuple with the desired period of data, the
       base value, and whether you want an instantaneous approximation or
@@ -32,7 +33,7 @@ def read(buoy, dstart, dend, tz='UTC', data='iv', resample=None):
         df = read_tabs(buoy, dstart, dend, tz)
         resample = ('30T', 0, 'instant')
     elif len(buoy) == 8:  # USGS
-        df = read_usgs(buoy, dstart, dend, data, tz)
+        df = read_usgs(buoy, dstart, dend, freq, var, tz)
     elif len(buoy) == 4:  # TWDB
         df = read_twdb(buoy, dstart, dend, tz)
     else:
@@ -137,23 +138,45 @@ def read_twdb(buoy, dstart, dend, tz='UTC'):
     return df
 
 
-def read_usgs(buoy, dstart, dend, data='iv', tz='UTC'):
+def read_usgs(buoy, dstart, dend, freq='iv', var='flow', tz='UTC'):
     '''Uses package hydrofunctions.
 
-    data can be 'iv' (default) for instantaneous flow rate readings or 'dv'
+    freq can be 'iv' (default) for instantaneous flow rate readings or 'dv'
       for daily values.
-    Returns stream flow data in m^3/s
+    var can be 'flow' (default) for stream flow data in m^3/s, 'height' for
+      gauge height data in m, or 'storage' for reservoir storage in m^3.
+      Not all stations have both.
+
+    Can pip install hydrofunctions.
     '''
 
     import hydrofunctions as hf
 
-    df = hf.NWIS(buoy, data, dstart.strftime('%Y-%m-%d'), dend.strftime('%Y-%m-%d')).get_data().df()[dstart:dend].tz_localize('UTC').tz_convert(tz)
+    if var == 'flow':
+        code = '00060'
+    elif var == 'height':
+        code = '00065'
+    elif var == 'storage':
+        code = '00054'
+
+    df = hf.NWIS(buoy, freq, dstart.strftime('%Y-%m-%d'), dend.strftime('%Y-%m-%d'), parameterCd=code).get_data().df()[dstart:dend].tz_localize('UTC').tz_convert(tz)
     # drop qualifiers column
     df.drop(df.columns[1],axis=1,inplace=True)
-    # convert from ft^3/s to m^3/s
-    df *= 0.3048**3  # to m^3/s
-    # rename
-    df.columns = ['Flow rate [m^3/s]']
+
+    if var == 'flow':
+        # convert from ft^3/s to m^3/s
+        df *= 0.3048**3  # to m^3/s
+        # rename
+        df.columns = ['Flow rate [m^3/s]']
+    elif var == 'height':
+        # convert from ft to m
+        df *= 0.3048  # to m
+        # rename
+        df.columns = ['Gage height [m]']
+    elif var == 'storage':
+        df *= 1233.48  # convert from acre-foot to m^3
+        # rename
+        df.columns = ['Reservoir storage [m^3]']
 
     # need to change column name if not UTC timezone
     if tz != 'UTC':
