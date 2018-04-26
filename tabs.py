@@ -126,10 +126,15 @@ def read_twdb(buoy, dstart, dend, tz='UTC'):
         url = base + buoy + '/data/' + File + '?output_format=csv&binning=hour'
         dft = pd.read_csv(url, index_col=0,
                          parse_dates=True, comment='#', header=0,
-                         names=['dates [UTC]', filename])[dstart:dend].tz_localize('UTC')
+                         names=['Dates [UTC]', filename])[dstart:dend].tz_localize('UTC')
         df = pd.concat([df, dft], axis=1)
 
-    return df.tz_convert(tz)
+    # need to change column name if not UTC timezone
+    if tz != 'UTC':
+        df = df.tz_convert(tz)
+        df.index.name = 'Dates [US/Central]'
+
+    return df
 
 
 def read_usgs(buoy, dstart, dend, data='iv', tz='UTC'):
@@ -137,8 +142,24 @@ def read_usgs(buoy, dstart, dend, data='iv', tz='UTC'):
 
     data can be 'iv' (default) for instantaneous flow rate readings or 'dv'
       for daily values.
+    Returns stream flow data in m^3/s
     '''
 
     import hydrofunctions as hf
 
-    return hf.NWIS(buoy, data, dstart.strftime('%Y-%m-%d'), dend.strftime('%Y-%m-%d')).get_data().df()[dstart:dend].tz_localize('UTC').tz_convert(tz)
+    df = hf.NWIS(buoy, data, dstart.strftime('%Y-%m-%d'), dend.strftime('%Y-%m-%d')).get_data().df()[dstart:dend].tz_localize('UTC').tz_convert(tz)
+    # drop qualifiers column
+    df.drop(df.columns[1],axis=1,inplace=True)
+    # convert from ft^3/s to m^3/s
+    df *= 0.3048**3  # to m^3/s
+    # rename
+    df.columns = ['Flow rate [m^3/s]']
+
+    # need to change column name if not UTC timezone
+    if tz != 'UTC':
+        df = df.tz_convert(tz)
+        df.index.name = 'Dates [US/Central]'
+    else:
+        df.index.name = 'Dates [UTC]'
+
+    return df
