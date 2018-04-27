@@ -31,8 +31,9 @@ def read(buoy, dstart, dend, tz='UTC', freq='iv', var='flow', resample=None):
 
     if len(buoy) == 1:  # TABS
         df = read_tabs(buoy, dstart, dend, tz)
-        resample = ('30T', 0, 'instant')
-    elif len(buoy) == 8:  # USGS
+        if resample is None:  # resample to 30 minutes if not told otherwise
+            resample = ('30T', 0, 'instant')
+    elif len(buoy) == 8 or isinstance(buoy, list):  # USGS
         df = read_usgs(buoy, dstart, dend, freq, var, tz)
     elif len(buoy) == 4:  # TWDB
         df = read_twdb(buoy, dstart, dend, tz)
@@ -91,6 +92,9 @@ def read_tabs(buoy, dstart, dend, tz='UTC'):
         except:
             pass
 
+    # change column names to include station name
+    df.columns = [buoy + ': ' + col for col in df.columns]
+
     return df
 
 
@@ -109,6 +113,9 @@ def read_other(buoy, dstart, dend, tz='UTC'):
     url += dstart.strftime('%Y-%m-%d') + '+-+' + dend.strftime('%Y-%m-%d')
     try:
         df = pd.read_table(url, parse_dates=True, index_col=0, na_values=-999)[dstart:dend].tz_localize(tz)
+
+        # change column names to include station name
+        df.columns = [buoy + ': ' + col for col in df.columns]
     except:
         print('Data not available')
 
@@ -130,6 +137,9 @@ def read_twdb(buoy, dstart, dend, tz='UTC'):
                          names=['Dates [UTC]', filename])[dstart:dend].tz_localize('UTC')
         df = pd.concat([df, dft], axis=1)
 
+    # change column names to include station name
+    df.columns = [buoy + ': ' + col for col in df.columns]
+
     # need to change column name if not UTC timezone
     if tz != 'UTC':
         df = df.tz_convert(tz)
@@ -141,6 +151,7 @@ def read_twdb(buoy, dstart, dend, tz='UTC'):
 def read_usgs(buoy, dstart, dend, freq='iv', var='flow', tz='UTC'):
     '''Uses package hydrofunctions.
 
+    buoy can be a list of strings for USGS
     freq can be 'iv' (default) for instantaneous flow rate readings or 'dv'
       for daily values.
     var can be 'flow' (default) for stream flow data in m^3/s, 'height' for
@@ -160,24 +171,24 @@ def read_usgs(buoy, dstart, dend, freq='iv', var='flow', tz='UTC'):
         code = '00054'
 
     df = hf.NWIS(buoy, freq, dstart.strftime('%Y-%m-%d'), dend.strftime('%Y-%m-%d'), parameterCd=code).get_data().df()[dstart:dend].tz_localize('UTC').tz_convert(tz)
-    # drop qualifiers column
-    df.drop(df.columns[1],axis=1,inplace=True)
+    # drop qualifiers column(s)
+    df.drop(df.iloc[:,['qualifiers' in col for col in df.columns]], axis=1, inplace=True)
 
     if var == 'flow':
         # convert from ft^3/s to m^3/s
         df *= 0.3048**3  # to m^3/s
         # rename
-        df.columns = ['Flow rate [m^3/s]']
+        name = 'Flow rate [m^3/s]'
     elif var == 'height':
         # convert from ft to m
         df *= 0.3048  # to m
         # rename
-        df.columns = ['Gage height [m]']
+        name = 'Gage height [m]'
     elif var == 'storage':
         df *= 1233.48  # convert from acre-foot to m^3
         # rename
-        df.columns = ['Reservoir storage [m^3]']
-
+        name = 'Reservoir storage [m^3]'
+    df.columns = [col.split(':')[1] + ': ' + name for col in df.columns]
     # need to change column name if not UTC timezone
     if tz != 'UTC':
         df = df.tz_convert(tz)
