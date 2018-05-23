@@ -35,26 +35,26 @@ def read(buoy, dstart, dend, tz='UTC', freq='iv', var='flow', resample=None):
             resample = ('30T', 0, 'instant')
     elif len(buoy) == 8 or isinstance(buoy, list):  # USGS
         df = read_usgs(buoy, dstart, dend, freq, var, tz)
-    elif len(buoy) == 4:  # TWDB
+    elif len(buoy) == 4 or buoy == 'DOLLAR':  # TWDB
         df = read_twdb(buoy, dstart, dend, tz)
     else:
         df = read_other(buoy, dstart, dend, tz)
 
     if resample is not None:
-
+        # df.resample('30T').asfreq()?
+        # import pdb; pdb.set_trace()
         # check for upsampling or downsampling
         dt_data = df.index[1] - df.index[0]
         ind = pd.date_range(dstart, dend, freq=resample[0], tz=tz)
         dt_input =  ind[1] - ind[0]
 
         # downsampling
-        if (dt_data > dt_input) and (resample[2] == 'mean'):
+        if (dt_data < dt_input) and resample[2] == 'mean':
 
             df = df.resample(resample[0], base=resample[1]).mean()
 
         # either upsampling or downsampling but want instantaneous value
-        elif (dt_data <= dt_input) or \
-                ((dt_data > dt_input) and (resample[2] == 'instant')):
+        elif ((dt_data >= dt_input) or ((dt_data < dt_input) and (resample[2] == 'instant'))):
 
 
             # accounting for known issue for interpolation after sampling if indices changes
@@ -62,7 +62,7 @@ def read(buoy, dstart, dend, tz='UTC', freq='iv', var='flow', resample=None):
             # interpolate on union of old and new index
             # this step is extraneous if downsampling is a factor of time spacing
             #   but removes nan's ahead of time if not
-            df_union = df.reindex(df.index.union(ind)).interpolate(method='time', limit=2)
+            df_union = df.reindex(df.index.union(ind)).interpolate(method='time', limit=10)
 
             # reindex to the new index
             df = df_union.reindex(ind)
@@ -113,11 +113,11 @@ def read_other(buoy, dstart, dend, tz='UTC'):
     url += dstart.strftime('%Y-%m-%d') + '+-+' + dend.strftime('%Y-%m-%d')
     try:
         df = pd.read_table(url, parse_dates=True, index_col=0, na_values=-999)[dstart:dend].tz_localize(tz)
-
         # change column names to include station name
         df.columns = [buoy + ': ' + col for col in df.columns]
     except:
         print('Data not available')
+        df = None
 
     return df
 
