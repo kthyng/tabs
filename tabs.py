@@ -55,57 +55,65 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
     if dstart is not None:
         dstart = pd.Timestamp(dstart)
         dend = pd.Timestamp(dend)
+        assert isinstance(dstart, pd.Timestamp) and isinstance(dend, pd.Timestamp), 'dstart and dend should be interpretable by pandas.Timestamp'
 
-    if model:  # use model output
-        df = read_other(buoy, dstart, dend, model=True, datum=datum)
-    elif len(buoy) == 1:  # TABS
-        df = read_tabs(buoy, dstart, dend)
-        if resample is None:  # resample to 30 minutes if not told otherwise
-            resample = ('30T', 0, 'instant')
-    elif len(buoy) == 8 or isinstance(buoy, list):  # USGS
-        df = read_usgs(buoy, dstart, dend, freq, var)
-    elif len(buoy) == 4 or buoy == 'DOLLAR':  # TWDB
-        df = read_twdb(buoy, dstart, dend, binning=binning)
-    else:
-        df = read_other(buoy, dstart, dend, datum=datum)
+    try:
+        if model:  # use model output
+            assert dstart is not None and dend is not None, 'dstart and dend should be strings with datetimes'
+            df = read_other(buoy, dstart, dend, model=True, datum=datum)
+        elif len(buoy) == 1:  # TABS
+            assert dstart is not None and dend is not None, 'dstart and dend should be strings with datetimes'
+            df = read_tabs(buoy, dstart, dend)
+            if resample is None:  # resample to 30 minutes if not told otherwise
+                resample = ('30T', 0, 'instant')
+        elif len(buoy) == 8 or isinstance(buoy, list):  # USGS
+            assert dstart is not None and dend is not None, 'dstart and dend should be strings with datetimes'
+            df = read_usgs(buoy, dstart, dend, freq, var)
+        elif len(buoy) == 4 or buoy == 'DOLLAR':  # TWDB
+            df = read_twdb(buoy, dstart, dend, binning=binning)
+        else:
+            if 'full' not in buoy:
+                assert dstart is not None and dend is not None, 'dstart and dend should be strings with datetimes'
+            df = read_other(buoy, dstart, dend, datum=datum)
 
-    # need to change column name if not UTC timezone
-    if tz != 'UTC':
-        df = df.tz_convert(tz)
-        df.index.name = 'Dates [US/Central]'
-    else:
-        df.index.name = 'Dates [UTC]'
+        # need to change column name if not UTC timezone
+        if tz != 'UTC':
+            df = df.tz_convert(tz)
+            df.index.name = 'Dates [US/Central]'
+        else:
+            df.index.name = 'Dates [UTC]'
 
-    if resample is not None:
-        # df.resample('30T').asfreq()?
-        # import pdb; pdb.set_trace()
-        # check for upsampling or downsampling
-        dt_data = df.index[1] - df.index[0]
-        ind = pd.date_range(dstart, dend, freq=resample[0], tz=tz)
-        dt_input =  ind[1] - ind[0]
+        if resample is not None:
+            # df.resample('30T').asfreq()?
+            # import pdb; pdb.set_trace()
+            # check for upsampling or downsampling
+            dt_data = df.index[1] - df.index[0]
+            ind = pd.date_range(dstart, dend, freq=resample[0], tz=tz)
+            dt_input =  ind[1] - ind[0]
 
-        # downsampling
-        if (dt_data < dt_input) and resample[2] == 'mean':
+            # downsampling
+            if (dt_data < dt_input) and resample[2] == 'mean':
 
-            df = df.resample(resample[0], base=resample[1]).mean()
+                df = df.resample(resample[0], base=resample[1]).mean()
 
-        # either upsampling or downsampling but want instantaneous value
-        elif ((dt_data >= dt_input) or ((dt_data < dt_input) and (resample[2] == 'instant'))):
+            # either upsampling or downsampling but want instantaneous value
+            elif ((dt_data >= dt_input) or ((dt_data < dt_input) and (resample[2] == 'instant'))):
 
+                assert resample[2] == 'instant', 'you did not choose "instant" but it is happening'
+                # accounting for known issue for interpolation after sampling if indices changes
+                # https://github.com/pandas-dev/pandas/issues/14297
+                # interpolate on union of old and new index
+                # this step is extraneous if downsampling is a factor of time spacing
+                #   but removes nan's ahead of time if not
+                df_union = df.reindex(df.index.union(ind)).interpolate(method='time', limit=10)
 
-            # accounting for known issue for interpolation after sampling if indices changes
-            # https://github.com/pandas-dev/pandas/issues/14297
-            # interpolate on union of old and new index
-            # this step is extraneous if downsampling is a factor of time spacing
-            #   but removes nan's ahead of time if not
-            df_union = df.reindex(df.index.union(ind)).interpolate(method='time', limit=10)
+                # reindex to the new index
+                df = df_union.reindex(ind)
 
-            # reindex to the new index
-            df = df_union.reindex(ind)
-
-    # except:
-    #     print('Data not available')
-    #     df = None
+    except Exception as e:
+        print('Exception:\n', e)
+        print('\nNone returned')
+        df = None
 
     return df
 
@@ -119,9 +127,6 @@ def read_tabs(buoy, dstart, dend):
 
     Note that data are resampled to be every 30 minutes to have a single dataframe.
     '''
-
-    assert dstart is not None and dend is not None, 'dstart and dend should be pandas timestamps'
-    assert isinstance(dstart, pd.Timestamp) and isinstance(dend, pd.Timestamp), 'dstart and dend should be pandas timestamps'
 
     df = pd.DataFrame()
     for table in ['met', 'salt', 'ven', 'wave']:
@@ -159,8 +164,6 @@ def read_other(buoy, dstart=None, dend=None, model=False, datum=None):
             df = df[dstart:dend]
 
     else:
-        assert dstart is not None and dend is not None, 'dstart and dend should be strings describing dates'
-        assert isinstance(dstart, pd.Timestamp) and isinstance(dend, pd.Timestamp), 'dstart and dend should be pandas timestamps'
 
         url = 'http://pong.tamu.edu/tabswebsite/subpages/tabsquery.php?Buoyname=' + buoy + '&Datatype=download&units=M&tz=UTC&datepicker='
         url += dstart.strftime('%Y-%m-%d') + '+-+' + dend.strftime('%Y-%m-%d')
@@ -226,9 +229,6 @@ def read_usgs(buoy, dstart, dend, freq='iv', var='flow'):
       gauge height data in m, or 'storage' for reservoir storage in m^3.
       Not all stations have both.
     '''
-
-    assert dstart is not None and dend is not None, 'dstart and dend should be strings describing dates'
-    assert isinstance(dstart, pd.Timestamp) and isinstance(dend, pd.Timestamp), 'dstart and dend should be pandas timestamps'
 
     import hydrofunctions as hf
 
