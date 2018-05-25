@@ -1,15 +1,27 @@
 '''
-Read in data that is served through TABS website.
+Read in data that is served through TABS website and more.
+
+More information and data locations:
+TABS website: http://tabs.gerg.tamu.edu
+TWDB data: http://waterdatafortexas.org
+USGS stream gauges in TX: https://txpub.usgs.gov/txwaterdashboard/index.html
 '''
 
 import pandas as pd
 
 
-def read(buoy, dstart, dend, tz='UTC', freq='iv', var='flow', resample=None):
+def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
+         resample=None, binning='hour', model=False, datum=None):
     '''Wrapper so you don't have to know what kind of buoy it is.
 
-    freq keyword is for USGS data: 'iv' is instantaneous values, and 'dv' is daily
-    var keyword is for USGS data: 'flow' is m^3 and 'height' is m, 'storage' is m^3
+    buoy (str): the name of a data station, particularly in Texas, but other
+      USGS stream gauges should work, and any time series from TWDB or TABS.
+      Add '_full' to a PORTS station to get any available full ADCP profile.
+    dstart, dend should be strings that are interpretable by pd.Timestamp. These
+      are not required for TWDB data or for full ADCP profiles.
+    tz: 'UTC' by default but could also be 'US/Central'
+    freq keyword is for USGS data: (default 'iv') 'iv' is instantaneous values, and 'dv' is daily
+    var keyword is for USGS data: (default 'flow') 'flow' is m^3, 'height' is m, 'storage' is m^3
     resample will interpolate to upsample or take the average to downsample
       data. If used, input a tuple with the desired period of data, the
       base value, and whether you want an instantaneous approximation or
@@ -20,25 +32,49 @@ def read(buoy, dstart, dend, tz='UTC', freq='iv', var='flow', resample=None):
       instantaneous value between given values.
       `resample=('15T',0,'mean')` will take an average of values and only makes
       sense if downsampling.
+    binning (default 'hour'): string, only used by TWDB data
+    model (False): boolean. If True, read model output for station instead of data.
+    datum (default None): if None, default of MSL is read in. Can be
+      'MSL', 'MHHW', 'MHW', 'MLW', 'MLLW', 'MTL' for tidal height. Only used in
+      data that has tidal elevation.
 
     Note that TABS data is by default resampled to 30 minutes since otherwise
-      wave data introduces regular nan's.
+      wave data introduces regular nan's. This can be overridden with user-input
+      resample choices.
+
+    Example usage:
+        import tabs
+        df = tabs.read('BOLI')
+        df = tabs.read('g06010', '2017-8-1', '2017-8-10')
+
+    Can easily combine dataframes after reading in from different stations with
+        df = df.join(tabs.read('EAST'), how='outer')
     '''
 
     # use pandas Timestamp functionality to interpret input datetimes
-    dstart = pd.Timestamp(dstart)
-    dend = pd.Timestamp(dend)
+    if dstart is not None:
+        dstart = pd.Timestamp(dstart)
+        dend = pd.Timestamp(dend)
 
-    if len(buoy) == 1:  # TABS
-        df = read_tabs(buoy, dstart, dend, tz)
+    if model:  # use model output
+        df = read_other(buoy, dstart, dend, model=True, datum=datum)
+    elif len(buoy) == 1:  # TABS
+        df = read_tabs(buoy, dstart, dend)
         if resample is None:  # resample to 30 minutes if not told otherwise
             resample = ('30T', 0, 'instant')
     elif len(buoy) == 8 or isinstance(buoy, list):  # USGS
-        df = read_usgs(buoy, dstart, dend, freq, var, tz)
+        df = read_usgs(buoy, dstart, dend, freq, var)
     elif len(buoy) == 4 or buoy == 'DOLLAR':  # TWDB
-        df = read_twdb(buoy, dstart, dend, tz)
+        df = read_twdb(buoy, dstart, dend, binning=binning)
     else:
-        df = read_other(buoy, dstart, dend, tz)
+        df = read_other(buoy, dstart, dend, datum=datum)
+
+    # need to change column name if not UTC timezone
+    if tz != 'UTC':
+        df = df.tz_convert(tz)
+        df.index.name = 'Dates [US/Central]'
+    else:
+        df.index.name = 'Dates [UTC]'
 
     if resample is not None:
         # df.resample('30T').asfreq()?
@@ -67,27 +103,32 @@ def read(buoy, dstart, dend, tz='UTC', freq='iv', var='flow', resample=None):
             # reindex to the new index
             df = df_union.reindex(ind)
 
+    # except:
+    #     print('Data not available')
+    #     df = None
+
     return df
 
 
-
-def read_tabs(buoy, dstart, dend, tz='UTC'):
+def read_tabs(buoy, dstart, dend):
     '''Read in data for TABS buoy. Return dataframe.
 
     buoy: string containing buoy name
-    dstart: string containing start date and time
-    dend: string containing end date and time
-    tz: 'UTC' by default but could also be 'US/Central'
+    dstart: pandas Timestamp containing start date and time
+    dend: pandas Timestamp containing end date and time
 
     Note that data are resampled to be every 30 minutes to have a single dataframe.
     '''
 
+    assert dstart is not None and dend is not None, 'dstart and dend should be pandas timestamps'
+    assert isinstance(dstart, pd.Timestamp) and isinstance(dend, pd.Timestamp), 'dstart and dend should be pandas timestamps'
+
     df = pd.DataFrame()
     for table in ['met', 'salt', 'ven', 'wave']:
-        url = 'http://pong.tamu.edu/tabswebsite/subpages/tabsquery.php?Buoyname=' + buoy + '&table=' + table + '&Datatype=download&units=M&tz=' + tz + '&model=False&datepicker='
+        url = 'http://pong.tamu.edu/tabswebsite/subpages/tabsquery.php?Buoyname=' + buoy + '&table=' + table + '&Datatype=download&units=M&tz=UTC&model=False&datepicker='
         url += dstart.strftime('%Y-%m-%d') + '+-+' + dend.strftime('%Y-%m-%d')
         try:  # not all buoys have all datasets
-            dfnew = pd.read_table(url, parse_dates=True, index_col=0, na_values=-999)[dstart:dend].tz_localize(tz)
+            dfnew = pd.read_table(url, parse_dates=True, index_col=0, na_values=-999).tz_localize('UTC')
             df = pd.concat([df, dfnew], axis=1)
         except:
             pass
@@ -98,68 +139,96 @@ def read_tabs(buoy, dstart, dend, tz='UTC'):
     return df
 
 
-def read_other(buoy, dstart, dend, tz='UTC'):
+def read_other(buoy, dstart=None, dend=None, model=False, datum=None):
     '''Read in data for non-TABS buoy. Return dataframe.
 
     buoy: string containing buoy name
-    dstart: string containing start date and time
-    dend: string containing end date and time
-    tz: 'UTC' by default but could also be 'US/Central'
-
-    Note that data are resampled to be every 30 minutes to have a single dataframe.
+    dstart: pandas Timestamp object. Can be None if want full
+      velocity data from PORTS stations.
+    dend: pandas Timestamp object. Can be None if want full
+      velocity data from PORTS stations.
+    model (default False): if True, will read in model output instead of data
+    datum (default None): if None, default of MSL is read in. Can be
+      'MSL', 'MHHW', 'MHW', 'MLW', 'MLLW', 'MTL' for tidal height.
     '''
 
-    url = 'http://pong.tamu.edu/tabswebsite/subpages/tabsquery.php?Buoyname=' + buoy + '&Datatype=download&units=M&tz=' + tz + '&model=False&datepicker='
-    url += dstart.strftime('%Y-%m-%d') + '+-+' + dend.strftime('%Y-%m-%d')
-    try:
-        df = pd.read_table(url, parse_dates=True, index_col=0, na_values=-999)[dstart:dend].tz_localize(tz)
+    if 'full' in buoy:
+        url = 'http://pong.tamu.edu/tabswebsite/daily/%s_all' % buoy
+        df = pd.read_table(url, na_values=-999, parse_dates=True, index_col=0).tz_localize('UTC')
+        if dstart is not None:
+            df = df[dstart:dend]
+
+    else:
+        assert dstart is not None and dend is not None, 'dstart and dend should be strings describing dates'
+        assert isinstance(dstart, pd.Timestamp) and isinstance(dend, pd.Timestamp), 'dstart and dend should be pandas timestamps'
+
+        url = 'http://pong.tamu.edu/tabswebsite/subpages/tabsquery.php?Buoyname=' + buoy + '&Datatype=download&units=M&tz=UTC&datepicker='
+        url += dstart.strftime('%Y-%m-%d') + '+-+' + dend.strftime('%Y-%m-%d')
+        if model:
+            url += '&modelonly=True&model=True'
+        else:
+            url += '&modelonly=False&model=False'
+        if datum is not None:
+            url += '&datum=' + datum
+        df = pd.read_table(url, parse_dates=True, index_col=0, na_values=-999).tz_localize('UTC')
         # change column names to include station name
         df.columns = [buoy + ': ' + col for col in df.columns]
-    except:
-        print('Data not available')
-        df = None
 
     return df
 
 
-def read_twdb(buoy, dstart, dend, tz='UTC'):
-    '''Read in data from TWDB site.'''
+def read_twdb(buoy, dstart=None, dend=None, binning='hour'):
+    '''Read in data from TWDB site.
 
-    Files = ['seawater_salinity', 'water_depth_nonvented', 'water_temperature']
-    filenames = ['Salinity', 'Depth [m]', 'WaterT [deg C]']
+    if dstart is None, all available data in time will be read in.
+    binning (default 'hour') can be: 'mon' (monthly), 'day' (daily), 'hour' (hourly), 'min' (minutes)
+    '''
+
+    Files = ['seawater_salinity', 'water_depth_nonvented', 'water_temperature',
+             'water_dissolved_oxygen_concentration',
+             'water_dissolved_oxygen_percent_saturation', 'water_ph',
+             'water_turbidity']
+    filenames = ['Salinity', 'Depth [m]', 'WaterT [deg C]',
+                 'Dissolved oxygen concentration [mgl]',
+                 'Dissolved oxygen saturation concentration [%]', 'pH level',
+                 'Turbidity [ntu]']
     base = 'https://waterdatafortexas.org/coastal/api/stations/'
     df = pd.DataFrame()
     for File, filename  in zip(Files, filenames):
         # read in as UTC
-        url = base + buoy + '/data/' + File + '?output_format=csv&binning=hour'
-        dft = pd.read_csv(url, index_col=0,
-                         parse_dates=True, comment='#', header=0,
-                         names=['Dates [UTC]', filename])[dstart:dend].tz_localize('UTC')
-        df = pd.concat([df, dft], axis=1)
+        url = base + buoy + '/data/' + File + '?output_format=csv&binning=' + binning
+        if dstart is not None:
+            url += '&start_date=' + dstart.strftime('%Y-%m-%d') + '&end_date=' + dend.strftime('%Y-%m-%d')
+        try:
+            dft = pd.read_csv(url, index_col=0,
+                             parse_dates=True, comment='#', header=0,
+                             names=['Dates [UTC]', filename]).tz_localize('UTC')
+            df = pd.concat([df, dft], axis=1)
+        except:
+            pass
 
-    # change column names to include station name
     df.columns = [buoy + ': ' + col for col in df.columns]
-
-    # need to change column name if not UTC timezone
-    if tz != 'UTC':
-        df = df.tz_convert(tz)
-        df.index.name = 'Dates [US/Central]'
 
     return df
 
 
-def read_usgs(buoy, dstart, dend, freq='iv', var='flow', tz='UTC'):
+def read_usgs(buoy, dstart, dend, freq='iv', var='flow'):
     '''Uses package hydrofunctions.
 
     buoy can be a list of strings for USGS
+    dstart: pandas Timestamp object. Can be None if want full
+      velocity data from PORTS stations.
+    dend: pandas Timestamp object. Can be None if want full
+      velocity data from PORTS stations.
     freq can be 'iv' (default) for instantaneous flow rate readings or 'dv'
       for daily values.
     var can be 'flow' (default) for stream flow data in m^3/s, 'height' for
       gauge height data in m, or 'storage' for reservoir storage in m^3.
       Not all stations have both.
-
-    Can pip install hydrofunctions.
     '''
+
+    assert dstart is not None and dend is not None, 'dstart and dend should be strings describing dates'
+    assert isinstance(dstart, pd.Timestamp) and isinstance(dend, pd.Timestamp), 'dstart and dend should be pandas timestamps'
 
     import hydrofunctions as hf
 
@@ -170,7 +239,7 @@ def read_usgs(buoy, dstart, dend, freq='iv', var='flow', tz='UTC'):
     elif var == 'storage':
         code = '00054'
 
-    df = hf.NWIS(buoy, freq, dstart.strftime('%Y-%m-%d'), dend.strftime('%Y-%m-%d'), parameterCd=code).get_data().df()[dstart:dend].tz_localize('UTC').tz_convert(tz)
+    df = hf.NWIS(buoy, freq, dstart.strftime('%Y-%m-%d'), dend.strftime('%Y-%m-%d'), parameterCd=code).get_data().df().tz_localize('UTC')
     # drop qualifiers column(s)
     df.drop(df.iloc[:,['qualifiers' in col for col in df.columns]], axis=1, inplace=True)
 
@@ -189,11 +258,5 @@ def read_usgs(buoy, dstart, dend, freq='iv', var='flow', tz='UTC'):
         # rename
         name = 'Reservoir storage [m^3]'
     df.columns = [col.split(':')[1] + ': ' + name for col in df.columns]
-    # need to change column name if not UTC timezone
-    if tz != 'UTC':
-        df = df.tz_convert(tz)
-        df.index.name = 'Dates [US/Central]'
-    else:
-        df.index.name = 'Dates [UTC]'
 
     return df
