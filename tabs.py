@@ -86,34 +86,41 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
             df.index.name = 'Dates [UTC]'
 
         if resample is not None:
-            # check for upsampling or downsampling
-            dt_data = df.index[1] - df.index[0]
-            ind = pd.date_range(dstart, dend, freq=resample[0], tz=tz)
-            dt_input =  ind[1] - ind[0]
-
-            # downsampling
-            if (dt_data < dt_input) and resample[2] == 'mean':
-                loffset = (ind[1] - ind[0])/2
-                df = df.resample(resample[0], base=resample[1], label='left', loffset=loffset).mean()
-
-            # either upsampling or downsampling but want instantaneous value
-            elif ((dt_data >= dt_input) or ((dt_data < dt_input) and (resample[2] == 'instant'))):
-
-                assert resample[2] == 'instant', 'you did not choose "instant" but it is happening'
-                # accounting for known issue for interpolation after sampling if indices changes
-                # https://github.com/pandas-dev/pandas/issues/14297
-                # interpolate on union of old and new index
-                # this step is extraneous if downsampling is a factor of time spacing
-                #   but removes nan's ahead of time if not
-                df_union = df.reindex(df.index.union(ind)).interpolate(method='time', limit=10)
-
-                # reindex to the new index
-                df = df_union.reindex(ind)
+            df = resample_data(df, resample)
 
     except Exception as e:
         print('Exception:\n', e)
         print('\nNone returned')
         df = None
+
+    return df
+
+
+def resample_data(df, resample):
+
+    # check for upsampling or downsampling
+    dt_data = df.index[1] - df.index[0]
+    ind = pd.date_range(df.index[0], df.index[-1], freq=resample[0], tz=df.index.tz)
+    dt_input =  ind[1] - ind[0]
+
+    # downsampling
+    if (dt_data < dt_input) and resample[2] == 'mean':
+        loffset = (ind[1] - ind[0])/2
+        df = df.resample(resample[0], base=resample[1], label='left', loffset=loffset).mean()
+
+    # either upsampling or downsampling but want instantaneous value
+    elif ((dt_data >= dt_input) or ((dt_data < dt_input) and (resample[2] == 'instant'))):
+
+        assert resample[2] == 'instant', 'you did not choose "instant" but it is happening'
+        # accounting for known issue for interpolation after sampling if indices changes
+        # https://github.com/pandas-dev/pandas/issues/14297
+        # interpolate on union of old and new index
+        # this step is extraneous if downsampling is a factor of time spacing
+        #   but removes nan's ahead of time if not
+        df_union = df.reindex(df.index.union(ind)).interpolate(method='time', limit=10)
+
+        # reindex to the new index
+        df = df_union.reindex(ind)
 
     return df
 
