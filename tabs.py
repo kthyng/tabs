@@ -32,6 +32,8 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
       instantaneous value between given values.
       `resample=('15T',0,'mean')` will take an average of values and only makes
       sense if downsampling.
+      The resulting time series will be labeled at the middle of the
+      interval that a mean was taken over, if a mean was taken.
     binning (default 'hour'): string, only used by TWDB data
     model (False): boolean. If True, read model output for station instead of data.
     datum (default None): if None, default of MSL is read in. Can be
@@ -84,8 +86,6 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
             df.index.name = 'Dates [UTC]'
 
         if resample is not None:
-            # df.resample('30T').asfreq()?
-            # import pdb; pdb.set_trace()
             # check for upsampling or downsampling
             dt_data = df.index[1] - df.index[0]
             ind = pd.date_range(dstart, dend, freq=resample[0], tz=tz)
@@ -93,8 +93,8 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
 
             # downsampling
             if (dt_data < dt_input) and resample[2] == 'mean':
-
-                df = df.resample(resample[0], base=resample[1]).mean()
+                loffset = (ind[1] - ind[0])/2
+                df = df.resample(resample[0], base=resample[1], label='left', loffset=loffset).mean()
 
             # either upsampling or downsampling but want instantaneous value
             elif ((dt_data >= dt_input) or ((dt_data < dt_input) and (resample[2] == 'instant'))):
