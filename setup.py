@@ -9,4 +9,5 @@ setup(name='tabs',
       author_email='kthyng@gmail.com',
       url='https://github.com/kthyng/tabs',
       py_modules=['tabs'],
+      install_requires=['hydrofunctions', 'pandas'],
      )
