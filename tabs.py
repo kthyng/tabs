@@ -86,7 +86,30 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
             df.index.name = 'Dates [UTC]'
 
         if resample is not None:
-            df = resample_data(df, resample)
+            # check for upsampling or downsampling
+            dt_data = df.index[1] - df.index[0]
+            ind = pd.date_range(df.index[0], df.index[-1], freq=resample[0], tz=df.index.tz)
+            dt_input =  ind[1] - ind[0]
+            # allow for resampling over profile data
+            if 'Depth to center of bin [m]' in df.columns:
+                key = 'Depth to center of bin [m]'
+                depths = df[key].unique()
+            elif 'Distance to center of bin [m]' in df.columns:
+                key = 'Distance to center of bin [m]'
+                depths = df[key].unique()
+            else:
+                depths = None
+
+            if depths is None:
+                df = resample_data(df, resample)
+            else:
+                dfs = []
+                for depth in depths:
+                    dfs.append(resample_data(df[df[key] == depth], resample))
+                df = pd.concat(dfs, axis=0)
+                df['colFromIndex'] = df.index  # have to make this column for sorting
+                df = df.sort_values(['colFromIndex','Depth to center of bin [m]'], ascending=[True, False])
+                df.drop('colFromIndex', axis=1, inplace=True)
 
     except Exception as e:
         print('Exception:\n', e)
@@ -97,6 +120,7 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
 
 
 def resample_data(df, resample):
+    '''Resample data. Up or downsamping.'''
 
     # check for upsampling or downsampling
     dt_data = df.index[1] - df.index[0]
@@ -108,9 +132,8 @@ def resample_data(df, resample):
         loffset = (ind[1] - ind[0])/2
         df = df.resample(resample[0], base=resample[1], label='left', loffset=loffset).mean()
 
-    # either upsampling or downsampling but want instantaneous value
+    # either upsampling, or downsampling but want instantaneous value
     elif ((dt_data >= dt_input) or ((dt_data < dt_input) and (resample[2] == 'instant'))):
-
         assert resample[2] == 'instant', 'you did not choose "instant" but it is happening'
         # accounting for known issue for interpolation after sampling if indices changes
         # https://github.com/pandas-dev/pandas/issues/14297
