@@ -71,7 +71,7 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
         elif len(buoy) == 8 or isinstance(buoy, list):  # USGS
             assert dstart is not None and dend is not None, 'dstart and dend should be strings with datetimes'
             df = read_usgs(buoy, dstart, dend, freq, var)
-        elif len(buoy) == 4 or buoy == 'DOLLAR':  # TWDB
+        elif buoy.isalpha():  # TWDB stations are only letters but of varying length
             df = read_twdb(buoy, dstart, dend, binning=binning)
         else:
             if 'full' not in buoy:
