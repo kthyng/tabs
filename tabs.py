@@ -3,7 +3,7 @@ Read in data that is served through TABS website and more.
 
 More information and data locations:
 TABS website: http://tabs.gerg.tamu.edu
-TWDB data: http://waterdatafortexas.org
+TWDB data: http://waterdatafortexas.org/coastal
 USGS stream gauges in TX: https://txpub.usgs.gov/txwaterdashboard/index.html
 '''
 
@@ -27,7 +27,7 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
       base value, and whether you want an instantaneous approximation or
       an average. The code will figure out if this is down- or up-sampling. If
       it is upsampling, instantaneous is your only reasonable choice.
-      For example, `resample=('15T',0,'instant')`` for resampling to 15 minutes
+      For example, `resample=('15T',0,'instant')` for resampling to 15 minutes
       starting at 0 minutes on the hour and will interpolate to find the
       instantaneous value between given values.
       `resample=('15T',0,'mean')` will take an average of values and only makes
@@ -110,6 +110,11 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
                 df['colFromIndex'] = df.index  # have to make this column for sorting
                 df = df.sort_values(['colFromIndex','Depth to center of bin [m]'], ascending=[True, False])
                 df.drop('colFromIndex', axis=1, inplace=True)
+
+        # only output the specified dates and times
+        if dstart is not None:
+            df = df[dstart:dend]
+
 
     except Exception as e:
         print('Exception:\n', e)
@@ -249,10 +254,8 @@ def read_usgs(buoy, dstart, dend, freq='iv', var='flow'):
     '''Uses package hydrofunctions.
 
     buoy can be a list of strings for USGS
-    dstart: pandas Timestamp object. Can be None if want full
-      velocity data from PORTS stations.
-    dend: pandas Timestamp object. Can be None if want full
-      velocity data from PORTS stations.
+    dstart: pandas Timestamp object.
+    dend: pandas Timestamp object.
     freq can be 'iv' (default) for instantaneous flow rate readings or 'dv'
       for daily values.
     var can be 'flow' (default) for stream flow data in m^3/s, 'height' for
