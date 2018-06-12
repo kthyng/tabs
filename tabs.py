@@ -11,7 +11,7 @@ import pandas as pd
 
 
 def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
-         resample=None, binning='hour', model=False, datum=None):
+         resample=None, binning='hour', model=False, s_rho=-1, datum=None):
     '''Wrapper so you don't have to know what kind of buoy it is.
 
     buoy (str): the name of a data station, particularly in Texas, but other
@@ -36,6 +36,9 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
       interval that a mean was taken over, if a mean was taken.
     binning (default 'hour'): string, only used by TWDB data
     model (False): boolean. If True, read model output for station instead of data.
+    s_rho (-1): integer. For model output only. Index of vertical layer of model
+      output. -1 is the surface, -999 is for all depths, and the user can choose
+      an index between 0 and 29.
     datum (default None): if None, default of MSL is read in. Can be
       'MSL', 'MHHW', 'MHW', 'MLW', 'MLLW', 'MTL' for tidal height. Only used in
       data that has tidal elevation.
@@ -62,7 +65,7 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
     try:
         if model:  # use model output
             assert dstart is not None and dend is not None, 'dstart and dend should be strings with datetimes'
-            df = read_other(buoy, dstart, dend, model=True, datum=datum)
+            df = read_other(buoy, dstart, dend, model=True, s_rho=s_rho, datum=datum)
         elif len(buoy) == 1:  # TABS
             assert dstart is not None and dend is not None, 'dstart and dend should be strings with datetimes'
             df = read_tabs(buoy, dstart, dend)
@@ -179,7 +182,7 @@ def read_tabs(buoy, dstart, dend):
     return df
 
 
-def read_other(buoy, dstart=None, dend=None, model=False, datum=None):
+def read_other(buoy, dstart=None, dend=None, model=False, s_rho=-1, datum=None):
     '''Read in data for non-TABS buoy. Return dataframe.
 
     buoy: string containing buoy name
@@ -200,10 +203,10 @@ def read_other(buoy, dstart=None, dend=None, model=False, datum=None):
 
     else:
 
-        url = 'http://pong.tamu.edu/tabswebsite/subpages/tabsquery.php?Buoyname=' + buoy + '&Datatype=download&units=M&tz=UTC&datepicker='
+        url = 'http://localhost/tabswebsite/subpages/tabsquery.php?Buoyname=' + buoy + '&Datatype=download&units=M&tz=UTC&datepicker='
         url += dstart.strftime('%Y-%m-%d') + '+-+' + dend.strftime('%Y-%m-%d')
         if model:
-            url += '&modelonly=True&model=True'
+            url += '&modelonly=True&model=True&s_rho=' + str(s_rho)
         else:
             url += '&modelonly=False&model=False'
         if datum is not None:

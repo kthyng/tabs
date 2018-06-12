@@ -95,3 +95,13 @@ Available data stations are:
 15. The default time zone is UTC, but you can instead choose 'US/Central' with the `tz` keyword argument as follows:
 
 > df = tabs.read('F', '2010-5-23', '2010-5-30', tz='US/Central')
+
+16. You can easily plot with `pandas`. After reading in a dataset to `df`; note that the `plot` command will take many `matplotlib` keyword arguments:
+
+> df.plot()
+
+17. You can subdivide your dataset from one date to another using date strings
+
+> df['']
+
+18. You can also pull out one or more columns
