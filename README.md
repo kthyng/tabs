@@ -67,9 +67,9 @@ Available data stations are:
 
 > df = tabs.read(['08042558','08116650'], '2017-1-1', '2017-1-10', var='height')
 
-10. Read in time series output from numerical model of Texas-Louisiana shelf at a station available on the TABS website:
+10. Read in time series output from numerical model of Texas-Louisiana shelf at a station available on the TABS website, including a depth index for variables `s_rho` of between 0 and 29, with -1 as the surface (default) or -999 for all available depths:
 
-> df = tabs.read('B', '2018-6-2', '2018-6-10', model=True)
+> df = tabs.read('B', '2018-6-2', '2018-6-10', model=True, s_rho=10)
 
 11. Read in time series output available from a NOAA model for coastal tidal stations, for either sea surface height or tidal currents at some PORTS stations. This is available for 2 years before and after present day:
 
@@ -100,8 +100,20 @@ Available data stations are:
 
 > df.plot()
 
-17. You can subdivide your dataset from one date to another using date strings
+17. You can select from one date to another of your dataset using date strings
 
-> df['']
+> df['2017-1-1':'2017-1-5']
 
-18. You can also pull out one or more columns
+18. You can also pull out one or more columns:
+
+> df['column name']
+
+> df[['column1', 'column2']]
+
+19. You can export your dataframe to a csv file with:
+
+> df.to_csv('filename.csv')
+
+20. You can remove the timezone information on the datetimes but retain the timezone with:
+
+> df.tz_localize(None)

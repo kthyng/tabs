@@ -203,7 +203,7 @@ def read_other(buoy, dstart=None, dend=None, model=False, s_rho=-1, datum=None):
 
     else:
 
-        url = 'http://localhost/tabswebsite/subpages/tabsquery.php?Buoyname=' + buoy + '&Datatype=download&units=M&tz=UTC&datepicker='
+        url = 'http://pong.tamu.edu/tabswebsite/subpages/tabsquery.php?Buoyname=' + buoy + '&Datatype=download&units=M&tz=UTC&datepicker='
         url += dstart.strftime('%Y-%m-%d') + '+-+' + dend.strftime('%Y-%m-%d')
         if model:
             url += '&modelonly=True&model=True&s_rho=' + str(s_rho)
