@@ -8,6 +8,7 @@ USGS stream gauges in TX: https://txpub.usgs.gov/txwaterdashboard/index.html
 '''
 
 import pandas as pd
+import re
 
 
 def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
@@ -91,7 +92,15 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
         if resample is not None:
             # check for upsampling or downsampling
             dt_data = df.index[1] - df.index[0]
-            ind = pd.date_range(df.index[0], df.index[-1], freq=resample[0], tz=df.index.tz)
+            # want start date/time to reflect resample base value
+            start = df.index[0].normalize()
+            # find time unit from resample input ('min', 'T', 'hour')
+            unit = re.split('(\d+)',resample[0])[-1]
+            if unit == 'T': unit = 'min'
+            if unit == 'H': unit = 'hour'
+            deltat = pd.Timedelta(str(resample[1]) + unit)
+            start += deltat
+            ind = pd.date_range(start, df.index[-1], freq=resample[0], tz=df.index.tz)
             dt_input =  ind[1] - ind[0]
             # allow for resampling over profile data
             if 'Depth to center of bin [m]' in df.columns:
@@ -132,7 +141,14 @@ def resample_data(df, resample):
 
     # check for upsampling or downsampling
     dt_data = df.index[1] - df.index[0]
-    ind = pd.date_range(df.index[0], df.index[-1], freq=resample[0], tz=df.index.tz)
+    start = df.index[0].normalize()
+    # find time unit from resample input ('min', 'T', 'hour')
+    unit = re.split('(\d+)',resample[0])[-1]
+    if unit == 'T': unit = 'min'
+    if unit == 'H': unit = 'hour'
+    deltat = pd.Timedelta(str(resample[1]) + unit)
+    start += deltat
+    ind = pd.date_range(start, df.index[-1], freq=resample[0], tz=df.index.tz)
     dt_input =  ind[1] - ind[0]
 
     # downsampling
