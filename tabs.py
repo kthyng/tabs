@@ -12,7 +12,8 @@ import re
 
 
 def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
-         resample=None, binning='hour', model=False, s_rho=-1, datum=None):
+         resample=None, binning='hour', model=False, s_rho=-1, datum=None,
+         table=None):
     '''Wrapper so you don't have to know what kind of buoy it is.
 
     buoy (str): the name of a data station, particularly in Texas, but other
@@ -45,6 +46,12 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
     datum (default None): if None, default of MSL is read in. Can be
       'MSL', 'MHHW', 'MHW', 'MLW', 'MLLW', 'MTL' for tidal height. Only used in
       data that has tidal elevation.
+    table (default None): This gives the specific TABS buoy table, if you don't
+      want all tables combined together. Options are 'ven', 'salt', 'met',
+      'wave', and 'eng'. Not all tables are available for all stations. Using
+      this option is the only way to get the 'eng' data through this package.
+      Using the default of None with a call to a TABS station will get you all
+      of the data combined together.
 
     Note that TABS data is by default resampled to 30 minutes since otherwise
       wave data introduces regular nan's. This can be overridden with user-input
@@ -71,8 +78,10 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
             df = read_other(buoy, dstart, dend, model=True, s_rho=s_rho, datum=datum)
         elif len(buoy) == 1:  # TABS
             assert dstart is not None and dend is not None, 'dstart and dend should be strings with datetimes'
-            df = read_tabs(buoy, dstart, dend)
-            if resample is None:  # resample to 30 minutes if not told otherwise
+            df = read_tabs(buoy, dstart, dend, table)
+            # resample to 30 minutes if not told otherwise and if combining
+            # tables together.
+            if resample is None and table is None:
                 resample = ('30T', 0, 'instant', False)
         elif len(buoy) == 8 or isinstance(buoy, list):  # USGS
             assert dstart is not None and dend is not None, 'dstart and dend should be strings with datetimes'
@@ -177,28 +186,38 @@ def resample_data(df, resample):
     return df
 
 
-def read_tabs(buoy, dstart, dend):
+def read_tabs(buoy, dstart, dend, table=None):
     '''Read in data for TABS buoy. Return dataframe.
 
     buoy: string containing buoy name
     dstart: pandas Timestamp containing start date and time
     dend: pandas Timestamp containing end date and time
-
-    Note that data are resampled to be every 30 minutes to have a single dataframe.
+    table: see read() docstring
     '''
 
     df = pd.DataFrame()
-    for table in ['met', 'salt', 'ven', 'wave']:
+    if table is None:  # combine all tables together
+        for table in ['met', 'salt', 'ven', 'wave']:
+            url = 'http://pong.tamu.edu/tabswebsite/subpages/tabsquery.php?Buoyname=' + buoy + '&table=' + table + '&Datatype=download&units=M&tz=UTC&model=False&datepicker='
+            url += dstart.strftime('%Y-%m-%d') + '+-+' + dend.strftime('%Y-%m-%d')
+            try:  # not all buoys have all datasets
+                dfnew = pd.read_table(url, parse_dates=True, index_col=0, na_values=-999).tz_localize('UTC')
+                df = pd.concat([df, dfnew], axis=1)
+            except:
+                pass
+
+    else:  # just read in one table
         url = 'http://pong.tamu.edu/tabswebsite/subpages/tabsquery.php?Buoyname=' + buoy + '&table=' + table + '&Datatype=download&units=M&tz=UTC&model=False&datepicker='
         url += dstart.strftime('%Y-%m-%d') + '+-+' + dend.strftime('%Y-%m-%d')
         try:  # not all buoys have all datasets
-            dfnew = pd.read_table(url, parse_dates=True, index_col=0, na_values=-999).tz_localize('UTC')
-            df = pd.concat([df, dfnew], axis=1)
+            df = pd.read_table(url, parse_dates=True, index_col=0, na_values=-999).tz_localize('UTC')
         except:
             pass
 
+
     # change column names to include station name
-    df.columns = [buoy + ': ' + col for col in df.columns]
+    if not df.empty:  # df is empty if no data
+        df.columns = [buoy + ': ' + col for col in df.columns]
 
     return df
 
