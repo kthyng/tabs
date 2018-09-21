@@ -28,13 +28,15 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
       base value, and whether you want an instantaneous approximation or
       an average. The code will figure out if this is down- or up-sampling. If
       it is upsampling, instantaneous is your only reasonable choice.
-      For example, `resample=('15T',0,'instant')` for resampling to 15 minutes
+      For example, `resample=('15T',0,'instant',True)` for resampling to 15 minutes
       starting at 0 minutes on the hour and will interpolate to find the
       instantaneous value between given values.
-      `resample=('15T',0,'mean')` will take an average of values and only makes
+      `resample=('15T',0,'mean',True)` will take an average of values and only makes
       sense if downsampling.
       The resulting time series will be labeled at the middle of the
-      interval that a mean was taken over, if a mean was taken.
+      interval that a mean was taken over, if a mean was taken,
+      if resample[3]==True, otherwise if resample[3]==False, the label will be
+      given at the beginning of the time window.
     binning (default 'hour'): string, only used by TWDB data
     model (False): boolean. If True, read model output for station instead of data.
     s_rho (-1): integer. For model output only. Index of vertical layer of model
@@ -71,7 +73,7 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
             assert dstart is not None and dend is not None, 'dstart and dend should be strings with datetimes'
             df = read_tabs(buoy, dstart, dend)
             if resample is None:  # resample to 30 minutes if not told otherwise
-                resample = ('30T', 0, 'instant')
+                resample = ('30T', 0, 'instant', False)
         elif len(buoy) == 8 or isinstance(buoy, list):  # USGS
             assert dstart is not None and dend is not None, 'dstart and dend should be strings with datetimes'
             df = read_usgs(buoy, dstart, dend, freq, var)
@@ -153,8 +155,11 @@ def resample_data(df, resample):
 
     # downsampling
     if (dt_data < dt_input) and resample[2] == 'mean':
-        loffset = (ind[1] - ind[0])/2
-        df = df.resample(resample[0], base=resample[1], label='left', loffset=loffset).mean()
+        if resample[3]:  # shift label for time window to center of window
+            loffset = (ind[1] - ind[0])/2
+            df = df.resample(resample[0], base=resample[1], label='left', loffset=loffset).mean()
+        else:  # keep time label at left end of time window
+            df = df.resample(resample[0], base=resample[1]).mean()
 
     # either upsampling, or downsampling but want instantaneous value
     elif ((dt_data >= dt_input) or ((dt_data < dt_input) and (resample[2] == 'instant'))):
