@@ -203,8 +203,21 @@ def read_tabs(buoy, dstart, dend, table=None):
             try:  # not all buoys have all datasets
                 dfnew = pd.read_table(url, parse_dates=True, index_col=0, na_values=-999).tz_localize('UTC')
                 df = pd.concat([df, dfnew], axis=1)
-            except:
+
+            # error if instrument doesn't exist; won't include column in df
+            except pd.errors.ParserError as e:
                 pass
+
+            # error if data not currently available but instrument exists
+            # will include columns in df
+            except pd.errors.EmptyDataError as e:
+                # read columns from daily-created file from website
+                url2 = 'http://pong.tamu.edu/tabswebsite/daily/tabs_%s_%s' % (buoy, table)
+                columns = pd.read_table(url2, nrows=0).columns
+                dfnew = pd.DataFrame(columns=columns)
+                # this makes sure that the columns still exist even if data
+                # wasn't available
+                df = pd.concat([df, dfnew], axis=1)
 
     else:  # just read in one table
         url = 'http://pong.tamu.edu/tabswebsite/subpages/tabsquery.php?Buoyname=' + buoy + '&table=' + table + '&Datatype=download&units=M&tz=UTC&model=False&datepicker='
