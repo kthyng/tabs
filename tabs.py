@@ -196,6 +196,10 @@ def read_tabs(buoy, dstart, dend, table=None):
     '''
 
     tempkey = 'WaterT [deg C]'
+    winddirkey = 'Dir from [deg T]'
+    windspeedkey = 'Speed [m/s]'
+    currentsdirkey = 'Dir [deg T]'
+    currentsspeedkey = 'Speed [cm/s]'
 
     df = pd.DataFrame()
     if table is None:  # combine all tables together
@@ -222,11 +226,24 @@ def read_tabs(buoy, dstart, dend, table=None):
                 # wasn't available
                 df = pd.concat([df, dfnew], axis=1)
 
+            # Deal with temperature coming from two instruments
             if not df.empty and tempkey in dfnew.columns:  # df is empty if no data
                 if table == 'salt':
                     df.rename(columns={tempkey: '%s (microcat)' % (tempkey)}, inplace=True)
                 elif table == 'ven':
                     df.rename(columns={tempkey: '%s (dcs)' % (tempkey)}, inplace=True)
+
+            # Deal with currents and wind having similar keys
+            if currentsdirkey in dfnew.columns:  # df is empty if no data
+                if table == 'ven':
+                    df.rename(columns={currentsdirkey: '%s (currents)' % (currentsdirkey)}, inplace=True)
+                    df.rename(columns={currentsspeedkey: '%s (currents)' % (currentsspeedkey)}, inplace=True)
+
+            # Deal with currents and wind having similar keys
+            if winddirkey in dfnew.columns:  # df is empty if no data
+                if table == 'met':
+                    df.rename(columns={winddirkey: '%s (wind)' % (winddirkey)}, inplace=True)
+                    df.rename(columns={windspeedkey: '%s (wind)' % (windspeedkey)}, inplace=True)
 
     else:  # just read in one table
         url = 'http://pong.tamu.edu/tabswebsite/subpages/tabsquery.php?Buoyname=' + buoy + '&table=' + table + '&Datatype=download&units=M&tz=UTC&model=False&datepicker='
