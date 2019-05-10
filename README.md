@@ -13,7 +13,13 @@ You should now be able to `import tabs` from any Python script, ipython window, 
 
 ## Notes:
 
-The basic call is
+You can read in the metadata for a buoy with
+`buoymeta = tabs.meta(BUOYNAME)`, then access it as columns in a dataframe. For example, you can get the longitude and latitude for buoy 8771013 with the following:
+
+``meta = tabs.meta('8771013')
+meta[['lon','lat']]``
+
+The basic call to get buoy data is
 
 `tabs.read(BUOYNAME, DATETIME START STRING, DATETIME END STRING)`
 
@@ -31,11 +37,11 @@ Available data stations are:
 
 1. Read in all available types of data (which will include all of or a subset of: currents, temperature, salinity, winds, air temperature, and wave data) for a TABS buoy over a given time range. Data is resampled to every half hour by default since different instruments are available at different rates. This can be overridden with user-input resample choices.
 
-> df = tabs.read('B', '2018-1-1', '2018-1-10')
+    `df = tabs.read('B', '2018-1-1', '2018-1-10')`
 
 2. Read in PORTS data (currents) from Texas and Louisiana area. Can include time if desired:
 
-> df = tabs.read('g06010', '2017-7-1', '2017-7-10 12:00')
+    `df = tabs.read('g06010', '2017-7-1', '2017-7-10 12:00')`
 
 3. Read in full ADCP data for PORTS stations, which is either with depth or cross-channel. This data has a matching time stamp for each depth or cross-channel bin.
 
@@ -77,9 +83,8 @@ Available data stations are:
 
 12. After reading in different data, can combine dataframes:
 
-> df = tabs.read('BOLI')
-
-> df = df.join(tabs.read('EAST'), how='outer')
+    `df = tabs.read('BOLI')`
+`df = df.join(tabs.read('EAST'), how='outer')`
 
 13. We can also combine different sources of data. The result will have nan's at all times that are distinct for the two datasets, which may be most of the times. You can use a `resample` option to fill in the data.
 
