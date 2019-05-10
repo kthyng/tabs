@@ -11,6 +11,17 @@ import pandas as pd
 import re
 
 
+def meta(buoy):
+    '''Return metadata for buoy.'''
+
+    # csv file with buoy attributes for TABS website
+    loc = 'https://raw.githubusercontent.com/kthyng/tabswebsite/master/includes/buoys.csv'
+
+    bys = pd.read_csv(loc, index_col=0)
+
+    return bys.loc[buoy]  # return all attributes for buoy
+
+
 def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
          resample=None, binning='hour', model=False, s_rho=-1, datum=None,
          table=None):
