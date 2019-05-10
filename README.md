@@ -83,8 +83,7 @@ Available data stations are:
 
 12. After reading in different data, can combine dataframes:
 
-    `df = tabs.read('BOLI')`
-
+    `df = tabs.read('BOLI')`  
     `df = df.join(tabs.read('EAST'), how='outer')`
 
 13. We can also combine different sources of data. The result will have nan's at all times that are distinct for the two datasets, which may be most of the times. You can use a `resample` option to fill in the data.
