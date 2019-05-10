@@ -9,6 +9,7 @@ USGS stream gauges in TX: https://txpub.usgs.gov/txwaterdashboard/index.html
 
 import pandas as pd
 import re
+import traceback
 
 
 def meta(buoy):
@@ -24,7 +25,7 @@ def meta(buoy):
 
 def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
          resample=None, binning='hour', model=False, s_rho=-1, datum=None,
-         table=None):
+         table=None, waterair=True):
     '''Wrapper so you don't have to know what kind of buoy it is.
 
     buoy (str): the name of a data station, particularly in Texas, but other
@@ -63,6 +64,8 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
       this option is the only way to get the 'eng' data through this package.
       Using the default of None with a call to a TABS station will get you all
       of the data combined together.
+    waterair (default True): If True, add parenthetical to keys with velocity
+      or direction units to disambiguate.
 
     Note that TABS data is by default resampled to 30 minutes since otherwise
       wave data introduces regular nan's. This can be overridden with user-input
@@ -104,12 +107,28 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
                 assert dstart is not None and dend is not None, 'dstart and dend should be strings with datetimes'
             df = read_other(buoy, dstart, dend, datum=datum)
 
+        # catch if dataframe is empty
+        if df.empty:
+            print('Dataframe was empty. Maybe the requested time series is not available for this time period.')
+            return None
+
         # need to change column name if not UTC timezone
         if tz != 'UTC':
             df = df.tz_convert(tz)
             df.index.name = 'Dates [US/Central]'
         else:
             df.index.name = 'Dates [UTC]'
+
+        # add water and air identifiers to those keys to disambiguate
+        watercols = ['[cm/s]' in col or 'Dir [deg T]' in col for col in df.columns]
+        if watercols.count(True) and waterair:
+            for watercol in df.columns[watercols]:
+                df.rename(columns={watercol: '%s (water)' % (watercol)}, inplace=True)
+        aircols = ['[m/s]' in col or 'Dir from [deg T]' in col for col in df.columns]
+        if aircols.count(True) and waterair:
+            for aircol in df.columns[aircols]:
+                df.rename(columns={aircol: '%s (air)' % (aircol)}, inplace=True)
+
 
         if resample is not None:
             # check for upsampling or downsampling
@@ -152,6 +171,7 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
 
     except Exception as e:
         print('Exception:\n', e)
+        print(traceback.format_exc())
         print('\nNone returned')
         df = None
 
@@ -237,24 +257,15 @@ def read_tabs(buoy, dstart, dend, table=None):
                 # wasn't available
                 df = pd.concat([df, dfnew], axis=1)
 
+            except Exception as e:
+                print(e)
+
             # Deal with temperature coming from two instruments
-            if not df.empty and tempkey in dfnew.columns:  # df is empty if no data
+            if tempkey in df.columns:  # df is empty if no data
                 if table == 'salt':
                     df.rename(columns={tempkey: '%s (microcat)' % (tempkey)}, inplace=True)
                 elif table == 'ven':
                     df.rename(columns={tempkey: '%s (dcs)' % (tempkey)}, inplace=True)
-
-            # Deal with currents and wind having similar keys
-            if currentsdirkey in dfnew.columns:  # df is empty if no data
-                if table == 'ven':
-                    df.rename(columns={currentsdirkey: '%s (currents)' % (currentsdirkey)}, inplace=True)
-                    df.rename(columns={currentsspeedkey: '%s (currents)' % (currentsspeedkey)}, inplace=True)
-
-            # Deal with currents and wind having similar keys
-            if winddirkey in dfnew.columns:  # df is empty if no data
-                if table == 'met':
-                    df.rename(columns={winddirkey: '%s (wind)' % (winddirkey)}, inplace=True)
-                    df.rename(columns={windspeedkey: '%s (wind)' % (windspeedkey)}, inplace=True)
 
     else:  # just read in one table
         url = 'http://pong.tamu.edu/tabswebsite/subpages/tabsquery.php?Buoyname=' + buoy + '&table=' + table + '&Datatype=download&units=M&tz=UTC&model=False&datepicker='
