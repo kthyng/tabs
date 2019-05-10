@@ -16,8 +16,8 @@ You should now be able to `import tabs` from any Python script, ipython window, 
 You can read in the metadata for a buoy with
 `buoymeta = tabs.meta(BUOYNAME)`, then access it as columns in a dataframe. For example, you can get the longitude and latitude for buoy 8771013 with the following:
 
-``meta = tabs.meta('8771013')
-meta[['lon','lat']]``
+`meta = tabs.meta('8771013')`  
+`meta[['lon','lat']]`
 
 The basic call to get buoy data is
 
