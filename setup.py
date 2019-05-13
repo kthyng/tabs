@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-from distutils.core import setup
+from setuptools import setup
 
-setup(name='tabs',
+setup(name='tabs-buoys',
       version='2.0',
       description='Read in TABS website (and other Texas) data',
       author='Kristen Thyng',
