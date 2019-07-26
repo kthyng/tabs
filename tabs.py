@@ -252,7 +252,7 @@ def read_tabs(buoy, dstart, dend, table=None):
                 # read columns from daily-created file from website
                 url2 = 'http://pong.tamu.edu/tabswebsite/daily/tabs_%s_%s' % (buoy, table)
                 columns = pd.read_table(url2, nrows=0).columns
-                dfnew = pd.DataFrame(columns=columns)
+                dfnew = pd.DataFrame(columns=columns).tz_localize('UTC')
                 # this makes sure that the columns still exist even if data
                 # wasn't available
                 df = pd.concat([df, dfnew], axis=1)
