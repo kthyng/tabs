@@ -9,5 +9,5 @@ setup(name='tabs-buoys',
       author_email='kthyng@gmail.com',
       url='https://github.com/kthyng/tabs',
       py_modules=['tabs'],
-      install_requires=['hydrofunctions', 'pandas', 'gsw', 're', 'traceback'],
+      install_requires=['hydrofunctions', 'pandas', 'gsw', 'traceback'],
      )
