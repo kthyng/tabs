@@ -3,7 +3,7 @@
 from setuptools import setup
 
 setup(name='tabs-buoys',
-      version='2.1',
+      version='2.11',
       description='Read in TABS website (and other Texas) data',
       author='Kristen Thyng',
       author_email='kthyng@gmail.com',
