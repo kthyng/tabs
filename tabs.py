@@ -346,9 +346,10 @@ def read_twdb(buoy, dstart=None, dend=None, binning='hour'):
         try:
             dft = pd.read_csv(url, index_col=0,
                              parse_dates=True, comment='#', header=0,
-                             names=['Dates [UTC]', filename]).tz_localize('UTC')
+                             names=['Dates [UTC]', filename]).tz_convert('UTC')
             df = pd.concat([df, dft], axis=1)
-        except:
+        except Exception as e:
+            print(e)
             pass
 
     df.columns = [buoy + ': ' + col for col in df.columns]
