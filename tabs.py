@@ -346,7 +346,10 @@ def read_twdb(buoy, dstart=None, dend=None, binning='hour'):
         try:
             dft = pd.read_csv(url, index_col=0,
                              parse_dates=True, comment='#', header=0,
-                             names=['Dates [UTC]', filename]).tz_convert('UTC')
+                             names=['Dates [UTC]', filename])
+            # convert indices to pandas time stamps and convert to time zone tz
+            index = [pd.Timestamp(ind).tz_convert('UTC') for ind in dft.index]
+            dft.index = index
             df = pd.concat([df, dft], axis=1)
         except Exception as e:
             print(e)
