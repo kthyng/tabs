@@ -141,6 +141,8 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
             if unit == 'H': unit = 'hour'
             deltat = pd.Timedelta(str(resample[1]) + unit)
             start += deltat
+            # if there is an error on the following line in the future, suggest
+            # converting to UTC bc probably due to daylight savings time
             ind = pd.date_range(start, df.index[-1], freq=resample[0], tz=df.index.tz)
             dt_input =  ind[1] - ind[0]
             # allow for resampling over profile data
@@ -376,7 +378,11 @@ def read_usgs(buoy, dstart, dend, freq='iv', var='flow'):
     elif var == 'storage':
         code = '00054'
 
-    df = hf.NWIS(buoy, freq, dstart.strftime('%Y-%m-%d'), dend.strftime('%Y-%m-%d'), parameterCd=code).get_data().df().tz_localize('UTC')
+    # removed tz_localize because data is coming in with its own timezone information now
+    df = hf.NWIS(buoy, freq, dstart.strftime('%Y-%m-%d'), dend.strftime('%Y-%m-%d'), parameterCd=code).get_data().df()#.tz_localize('UTC')
+    # convert indices to pandas time stamps and convert to time zone tz
+    index = [pd.Timestamp(ind).tz_convert('UTC') for ind in df.index]
+    df.index = index
     # drop qualifiers column(s)
     df.drop(df.iloc[:,['qualifiers' in col for col in df.columns]], axis=1, inplace=True)
 
