@@ -314,7 +314,10 @@ def read_other(buoy, dstart=None, dend=None, model=False, s_rho=-1, datum=None):
             url += '&modelonly=False&model=False'
         if datum is not None:
             url += '&datum=' + datum
-        df = pd.read_table(url, parse_dates=True, index_col=0, na_values=-999).tz_localize('UTC')
+        try:
+            df = pd.read_table(url, parse_dates=True, index_col=0, na_values=-999).tz_localize('UTC')
+        except pd.errors.EmptyDataError as e:
+            df = pd.DataFrame()  # empty dataframe
         # change column names to include station name
         df.columns = [buoy + ': ' + col for col in df.columns]
 
