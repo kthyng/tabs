@@ -15,6 +15,9 @@ or, you can install from the github repo:
 1. Locally install the package  
 `pip install --user -e .`
 
+or just pip install directly from github repo:
+> pip install git+git://github.com/kthyng/tabs
+
 You should now be able to `import tabs` from any Python script, ipython window, or Jupyter notebook.
 
 ## Notes:

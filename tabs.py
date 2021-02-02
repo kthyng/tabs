@@ -82,8 +82,8 @@ def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
 
     # use pandas Timestamp functionality to interpret input datetimes
     if dstart is not None:
-        dstart = pd.Timestamp(dstart)
-        dend = pd.Timestamp(dend)
+        dstart = pd.Timestamp(dstart).tz_localize(tz)
+        dend = pd.Timestamp(dend).tz_localize(tz)
         assert isinstance(dstart, pd.Timestamp) and isinstance(dend, pd.Timestamp), 'dstart and dend should be interpretable by pandas.Timestamp'
 
     try:
