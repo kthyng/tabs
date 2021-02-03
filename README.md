@@ -20,6 +20,9 @@ or just pip install directly from github repo:
 
 You should now be able to `import tabs` from any Python script, ipython window, or Jupyter notebook.
 
+## Binder version
+You can access and then download data using this package with a Binder version here: https://github.com/kthyng/galveston_data
+
 ## Notes:
 
 You can read in the metadata for a buoy with

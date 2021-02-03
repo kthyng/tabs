@@ -11,16 +11,25 @@ import pandas as pd
 import re
 import traceback
 
+# csv file with buoy attributes for TABS website
+loc = 'https://raw.githubusercontent.com/kthyng/tabswebsite/master/includes/buoys.csv'
+
 
 def meta(buoy):
-    '''Return metadata for buoy.'''
-
-    # csv file with buoy attributes for TABS website
-    loc = 'https://raw.githubusercontent.com/kthyng/tabswebsite/master/includes/buoys.csv'
+    '''Return metadata for one buoy (as string) or a list 
+    of buoys (list of strings).'''
 
     bys = pd.read_csv(loc, index_col=0)
 
     return bys.loc[buoy]  # return all attributes for buoy
+
+
+def buoylist():
+    '''Return list of available buoys (missing TWDB).'''
+
+    bys = pd.read_csv(loc, index_col=0)
+
+    return list(bys.index)
 
 
 def read(buoy, dstart=None, dend=None, tz='UTC', freq='iv', var='flow',
@@ -386,7 +395,7 @@ def read_usgs(buoy, dstart, dend, freq='iv', var='flow'):
         code = '00054'
 
     # removed tz_localize because data is coming in with its own timezone information now
-    df = hf.NWIS(buoy, freq, dstart.strftime('%Y-%m-%d'), dend.strftime('%Y-%m-%d'), parameterCd=code).get_data().df()#.tz_localize('UTC')
+    df = hf.NWIS(buoy, freq, dstart.strftime('%Y-%m-%d'), dend.strftime('%Y-%m-%d'), parameterCd=code).df()#.tz_localize('UTC')
     # convert indices to pandas time stamps and convert to time zone tz
     index = [pd.Timestamp(ind).tz_convert('UTC') for ind in df.index]
     df.index = index
